@@ -1,0 +1,452 @@
+---
+title: "Correlation Between Median Value of Homes in Boston and Nitric Oxide Levels"
+author: "Damodar Pai"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: show
+    csl: biomed-central.csl
+    df_print: paged
+    fig_caption: yes
+    fig_height: 6
+    fig_width: 7
+    number_sections: yes
+    theme: journal
+    toc: yes
+    toc_float: yes
+abstract: This project represents my cumulative understanding of R in Applied Statistical Methods 4753. The data I’m using represents recent Boston Housing Data. In this project, I hope to analyze the relationship between Nitric Oxide and the Median Value of Homes within the Boston area with Simple Linear Regression. The goal of this project is to see if there is a clear correlation between thse 2 variables but also to represent my understanding of statistics in R.  
+
+--- 
+
+
+<center>
+
+![Pollution](DamodarPai.jpeg "My Picture"){ width=20% }
+
+</center>  
+
+
+# Introduction   
+
+When considering the purchase of a house, potential buyers are also evaluating the broader environment encompassing the property. Air quality plays a significant role in this assessment, particularly concerning the presence of nitrous oxide, a prevalent air pollutant. This gas not only adversely affects lung health but also contributes to the formation of acid rain, thereby influencing the desirability of a residential area. 
+
+The primary sources of nitric oxide in the environment include the emissions from cars, trucks, and the combustion of fossil fuels by factories. These activities are major contributors to air pollution, directly impacting the quality of life in urban and suburban settings. Consequently, this issue underscores the urgency of advocating for legislative changes. Such reforms could include relocating the development of highways and roads further from residential areas, enhancing renewable technology, and imposing limits on the number of factories within certain regions.
+
+<center>
+
+![City In Pollution](CityInPollution.png "City in Pollution (Mullins 2023)"){ width=20% }
+
+</center> 
+
+Moreover, the interplay between air pollution and property values is evident, as deteriorating air quality often correlates with lower home prices. This decline in property values results in reduced property taxes and, subsequently, lower future income taxes collected from homeowners. Therefore, addressing air pollution is not only vital for health and environmental reasons but also for the economic stability and attractiveness of residential areas.
+
+## Variables
+
+Data Labeling: 
+
+CRIM: per capita crime rate by town (numeric)
+
+ZN: proportion of residential land zoned for lots over 25,000 sq.ft. (numeric) 
+
+INDUS: proportion of non-retail business acres per town (numeric)
+
+CHAS: Charles River dummy variable (1 if tract bounds river; 0 otherwise) (categorical)
+
+NX: nitric oxides concentration (parts per 10 million) (numeric)
+
+RM: average number of rooms per dwelling (numeric)
+
+AGE: proportion of owner-occupied units built prior to 1940 (numeric)
+
+DIS: weighted distances to five Boston employment centres (numeric)
+
+RAD: index of accessibility to radial highways (numeric)
+
+TAX: full-value property-tax rate per $10,000 (numeric)
+
+PTRATIO: pupil-teacher ratio by town (numeric)
+
+B: 1000(Bk - 0.63)^2 where Bk is the proportion of [people of African American descent] by town (numeric)
+
+LSTAT: % lower status of the population (numeric)
+
+MEDV: Median value of owner-occupied homes in $1000s (target variable) (numeric) 
+
+(Satre 2024)
+
+
+## Research Question  
+
+Is there a negative relationship between nitric oxide concentration and the median value of owner occupied homes?  
+
+Null Hypothesis: \(H_0: \beta_1 = 0\) 
+
+Alternative Hypothesis: \(H_A: \beta_1 < 0\)
+
+
+### Setting the correct working directory(extremely important)
+
+```{r}
+getwd() 
+```
+
+# The Data
+## Reading in Data
+```{r}   
+Boston <- read.csv("Boston Housing Data/Boston.csv")
+  Boston$CRIM <- as.double(Boston$CRIM)
+  Boston$ZN <- as.double(Boston$ZN)
+  Boston$INDUS <- as.double(Boston$INDUS)
+  Boston$CHAS <- as.factor(Boston$CHAS)
+  Boston$NX <- as.double(Boston$NX)  
+  Boston$RM <- as.double(Boston$RM)
+  Boston$AGE <- as.double(Boston$AGE)
+  Boston$DIS <- as.double(Boston$DIS)
+  Boston$RAD <- as.double(Boston$RAD)
+  Boston$TAX <- as.double(Boston$TAX)
+  Boston$PTRATIO <- as.double(Boston$PTRATIO)
+  Boston$B <- as.double(Boston$B)
+  Boston$LSTAT <- as.double(Boston$LSTAT)
+  Boston$MEDV <- as.double(Boston$MEDV)
+head(Boston) 
+
+```
+
+## General summary of the data
+```{r} 
+library(dplyr)
+Boston_NOX_MEDV = Boston %>% select(NX,MEDV) 
+head(Boston_NOX_MEDV)
+summary(Boston_NOX_MEDV)
+range1 = max(Boston_NOX_MEDV$NX) - min(Boston_NOX_MEDV$NX) 
+range2 = max(Boston_NOX_MEDV$MEDV) - min(Boston_NOX_MEDV$MEDV)  
+ 
+"Slope using the ranges of NX and MEDV:"
+range2/range1
+```
+
+## Problem with the Data  
+
+As you can see above, the data has several outliers where there are high levels of Median Values regardless of high Nitric Oxide concentrations. There are definitely many other variables that are affecting the price of houses but just to make sure that those variables aren’t affecting our data significantly, we remove the outliers that are outside the range of 3 IQR of the upper and lower quartile. We will use this data to make sure that it is more representative of the impact of our independent variable. 
+
+## Finding a correlation in the data
+```{r}
+library(ggplot2)
+g = ggplot(Boston, aes(x = NX, y = MEDV)) + geom_point()
+g = g + geom_smooth(method = "loess")
+g
+```
+### Removing the outliers
+
+```{r}
+Q1 <- quantile(Boston_NOX_MEDV$MEDV, 0.25)
+Q3 <- quantile(Boston_NOX_MEDV$MEDV, 0.75)  
+IQR <- Q3 - Q1
+
+# Define outlier thresholds
+lower_bound <- Q1 - 3 * IQR
+upper_bound <- Q3 + 3 * IQR
+
+non_outliers <- Boston_NOX_MEDV$MEDV > lower_bound & Boston_NOX_MEDV$MEDV < upper_bound 
+
+Boston_NOX_MEDV <- Boston_NOX_MEDV[non_outliers, ] 
+
+```
+
+
+The way we're accounting for outliers is checking for values that are beyond 3 Interquartile ranges away from the mean value. If they are beyond 3 IQR, then they are removed from the dataset. Note that this is just data that is probably moreso affected by other variables like the house being extremely nice or being close to a great school or really close to a place of work. All variables that might overshadow the air pollution we're testing for. Note, this doesn't mean that we're completely removing outlier-like values. There are still certain values that might skew the data. But by the standard we use in Element of Statistics, we use 3 * IQR to check for outliers. 
+
+
+## Preliminary Graph Descriptors
+
+```{r}
+library (s20x)
+pairs20x(Boston_NOX_MEDV) 
+```
+# Estimating the Parameters
+
+## Why use a Simple Regression Model? 
+
+We want to model the relationship between our Y(Median Value of Boston Homes) and our X(Nitric Oxide Levels within the surrounding area of these homes). Since we have a myriad of data and we're not even sure if there's a relationship between the 2 variables, we try to see the probability that there is a relationship between those 2 variables.  
+
+## Theoretical Basis of SLR 
+
+We will use the equation , \[
+y = \beta_0 + \beta_1 x_i + \varepsilon_i
+\]
+Here we know \[\beta_0\] and \[\beta_1\] are our random variables that we are estimating for using regression.  
+This equation represents the mean of y which is the mean of MEDV. When we do a theoretical analysis of this, we get the following, there the expected of the error is 0.  
+
+\begin{align*}
+E(y) &= E(\beta_0 + \beta_1 x_i + \varepsilon_i) \\
+     &= \beta_0 + \beta_1 x_i + E(\varepsilon_i) \\
+     &= \beta_0 + \beta_1 x_i
+\end{align*}
+
+## Assumptions of SLR  
+- Data is independently and identically distributed
+- Probability distribution of error is normal centered at 0 and variance of a constant.   
+
+We already know that the data fits the first requirement since we know that the price of these houses aren't necessarily affecting each other and are distributed as a sample within the greater boston area. 
+We also know that the probability distribution of error is normal and centered at 0 after we took the log of the data and saw that the data had a normal distribution. This is done later in the project but we can assume both for future SLR for now. 
+
+## Method of Least Squares
+
+To initially estimate my \( \beta_0\)  and \( \beta_1\), I will use the method of least squares using the lm function. The function works by taking the squares of errors and finding the smallest sum when the individual squares are combined to create the smallest value. 
+
+```{r}
+bos.lm = lm(MEDV~NX, data = Boston_NOX_MEDV) 
+summary(bos.lm) 
+?lm  
+
+```
+
+From our function, we get the values: 
+
+\[
+\beta_0 = 41.404
+\]
+\[
+\beta_1 = -35.776
+\]
+
+## Conidence Interval for the the slope of MEDV/NX
+
+```{r}
+ciReg(bos.lm, conf.level=0.95, print.out=TRUE)
+```
+
+As we can see from the confidence interval, our \[\beta_1\] is from around -40 to -30 whcih is a hint that our null hypothesis isn't true because 0 isn't included within the interval. 
+
+## Visualizing our data
+```{r}
+plot(MEDV~NX,bg="Blue",pch=21,cex=1.2,
+     ylim=c(0,1.1*max(MEDV)),xlim=c(0,1.1*max(NX)),
+     main="Scatter Plot of Median Value of Homes and Nitric Oxide Concentration", data=Boston_NOX_MEDV)
+abline(bos.lm)
+```
+
+## Plotting Residual Sum of Squared, Total Sum of Squared, and Mean Sum of Squared
+
+Plotting the RSS,MSS, and TSS gives us a visual understanding of the difference between our estimated line and the actual data or the mean. 
+
+
+```{r}
+yhat = with(Boston_NOX_MEDV,predict(bos.lm,data.frame(NX))) 
+
+```
+
+### Plotting RSS
+
+```{r}
+plot(MEDV~NX,bg="Blue",pch=21,cex=1.2,
+              ylim=c(0,1.1*max(MEDV)),xlim=c(0,1.1*max(NX)),
+              main="Residual Line Segments of Median Value of Homes and Nitric Oxide Concentration", data= Boston_NOX_MEDV)
+abline(bos.lm)
+with(Boston_NOX_MEDV,{segments(NX,MEDV,NX,yhat)})
+abline(bos.lm)
+```
+
+### Plotting MSS
+
+```{r}
+plot(MEDV~NX,bg="Blue",pch=21,cex=1.2,
+             ylim=c(0,1.1*max(MEDV)),xlim=c(0,1.1*max(NX)),
+             main="Mean of Nitrogen vs Ammonium", data= Boston_NOX_MEDV)
+abline(bos.lm)
+with(Boston_NOX_MEDV, abline(h=mean(MEDV)))
+with(Boston_NOX_MEDV, segments(NX,mean(MEDV),NX,yhat,col="Red"))
+abline(bos.lm)
+
+```
+
+### Plotting TSS 
+
+```{r}
+plot(MEDV~NX,bg="Blue",pch=21,cex=1.2,
+              ylim=c(0,1.1*max(MEDV)),xlim=c(0,1.1*max(NX)),
+              main="Total Deviation Line Segments of Nitrogen vs Ammonium", data=Boston_NOX_MEDV) 
+with(Boston_NOX_MEDV,abline(h=mean(MEDV)))
+with(Boston_NOX_MEDV, segments(NX,MEDV,NX,mean(MEDV),col="Green"))
+```
+
+### Total Sum Calculations of RSS, MSS, and TSS
+```{r}
+RSS=with(Boston_NOX_MEDV,sum((MEDV-yhat)^2))
+RSS
+MSS=with(Boston_NOX_MEDV,sum((yhat-mean(MEDV))^2))
+MSS
+TSS=with(Boston_NOX_MEDV,sum((MEDV-mean(MEDV))^2))
+TSS
+```
+
+
+```{r} 
+MSS/TSS
+```
+
+Here we can make use our RSS, MSS, and TSS calculations to get the R-Squared which is representative of the fitness of our model to our data. 
+
+## Checking for Normality 
+
+```{r} 
+normcheck(bos.lm, shapiro.wilk = TRUE) 
+```
+
+## Lowess Smoother scatter plot of MEDV vs NX 
+```{r}
+library(s20x)
+trendscatter(MEDV~NX, f = 0.5, data = Boston_NOX_MEDV, main="MEDV vs NX")
+```
+
+## Problem with Normality  
+As we can see from our normcheck, the data doesn't seem normal at all. In fact, the data seems completely right skewed. In order to correct it, we can take the log of our MEDV data and then create estimates based off of that. 
+
+# Check the log of MEDV integrated into our linear model  
+## Creating log data 
+```{r}
+Boston_NOX_MEDV_LOG = Boston_NOX_MEDV 
+Boston_NOX_MEDV_LOG$MEDV = log(Boston_NOX_MEDV$MEDV)   
+
+```
+
+## General Summary of the Data
+```{r} 
+library (s20x)
+pairs20x(Boston_NOX_MEDV_LOG) 
+```
+
+## Summary of the linear model
+```{r}
+boslog.lm = lm(MEDV~NX, data = Boston_NOX_MEDV_LOG) 
+summary(boslog.lm) 
+```
+
+## Confidence Interval
+```{r}
+ciReg(boslog.lm, conf.level=0.95, print.out=TRUE)
+```
+
+## Physical representation of the linear correlation 
+```{r} 
+plot(MEDV~NX,bg="Blue",pch=21,cex=1.2,
+     ylim=c(0,1.1*max(MEDV)),xlim=c(0,1.1*max(NX)),
+     main="Scatter Plot of Median Value of Homes and Nitric Oxide Concentration", data=Boston_NOX_MEDV_LOG)
+abline(boslog.lm)
+```
+
+## Residual Data and Confirming Assumptions
+```{r} 
+yhatlog = with(Boston_NOX_MEDV_LOG,predict(boslog.lm,data.frame(NX)))
+```
+
+### RSS of log data
+```{r} 
+plot(MEDV~NX,bg="Blue",pch=21,cex=1.2,
+              ylim=c(0,1.1*max(MEDV)),xlim=c(0,1.1*max(NX)),
+              main="Residual Line Segments of Median Value of Homes and Nitric Oxide Concentration", data= Boston_NOX_MEDV_LOG)
+abline(boslog.lm)
+with(Boston_NOX_MEDV_LOG,segments(NX,MEDV,NX,yhatlog))
+abline(boslog.lm)
+```
+
+### MSS of log data
+```{r}
+plot(MEDV~NX,bg="Blue",pch=21,cex=1.2,
+             ylim=c(0,1.1*max(MEDV)),xlim=c(0,1.1*max(NX)),
+             main="Mean of Nitrogen vs Ammonium", data= Boston_NOX_MEDV_LOG)
+abline(boslog.lm)
+with(Boston_NOX_MEDV_LOG, abline(h=mean(MEDV)))
+with(Boston_NOX_MEDV_LOG, segments(NX,mean(MEDV),NX,yhatlog,col="Red"))
+abline(boslog.lm) 
+```
+
+### TSS of log data
+```{r}
+plot(MEDV~NX,bg="Blue",pch=21,cex=1.2,
+              ylim=c(0,1.1*max(MEDV)),xlim=c(0,1.1*max(NX)),
+              main="Total Deviation Line Segments of Nitrogen vs Ammonium", data=Boston_NOX_MEDV_LOG)
+with(Boston_NOX_MEDV_LOG,abline(h=mean(MEDV)))
+with(Boston_NOX_MEDV_LOG, segments(NX,MEDV,NX,mean(MEDV),col="Green"))
+```
+
+## Comparing Normality
+```{r}
+normcheck(boslog.lm) 
+normcheck(bos.lm)
+```
+
+The log data is clearly more normal than the regular MEDV. We can tell clearly from the histogram. Though the p-value is still 0, the log data is more relevant because it fits within our assumption. 
+
+```{r}
+library(s20x)
+trendscatter(MEDV~NX, f = 0.5, data = Boston_NOX_MEDV_LOG, main="MEDV vs NX")
+```
+
+## Checking Cook's distance to find further bias from outliers
+If several points have a significant Cook's distance then it will show in the graph. Note that these aren't all of the outliers but just some of the more significant ones that are affecting the data. In a perfect world we could remove some of these on top of the ones we removed at the beginning. 
+```{r}
+cooks20x(boslog.lm)
+```
+Cook's Distance for the linear model with log(MEDV) data shows that there are significant outliers at the observation numbers of 151,160,and 383. In a perfect world, I would remove these values since they are affecting the model. 
+
+# Check a different model(Quadratic Model)
+```{r} 
+quad.lm=lm(MEDV~NX + I(NX^2),data=Boston_NOX_MEDV_LOG)
+
+plot(MEDV~NX,bg="Blue",pch=21,cex=1.2,
+   ylim=c(0,1.1*max(MEDV)),xlim=c(0,1.1*max(NX)),main="Scatter Plot and Quadratic of Nitrogen vs Ammonium",data = Boston_NOX_MEDV_LOG)
+myplot = function(x){quad.lm$coef[1] + quad.lm$coef[2]*x + quad.lm$coef[3]*x^2}
+
+curve(myplot, lwd = 2, add = TRUE)
+```
+
+The following are all necessary to see how the data for quad relates to the data for linear models. 
+
+## Checking for Normality
+```{r}
+normcheck(quad.lm, shapiro.wilk = TRUE)
+```
+
+## Summary of the data
+```{r}
+summary(quad.lm) 
+``` 
+
+## General plot of the data
+```{r}
+plot(quad.lm, which = 1)
+```
+
+## Confidence Interval of the data 
+```{r}
+ciReg(quad.lm, conf.level=0.95, print.out=TRUE)
+```
+
+
+## Comparison of the Two Models  
+```{r}
+summary(quad.lm) 
+summary(boslog.lm)
+```
+
+### Contrast of the R-squared-values    
+Just looking at the 2 R-squared-values of the data, there is a Multiple R-Squared Value of 0.3435 for the quadratic model and a value of 0.3215 for the linear model that takes into account log(MEDV). We know that R-Squared represents the fitness of the model to a particular set of data, thus we know that the quadratic model is more applicable for the data. That said, it only has a fitness of 0.02 more, so it's clear that there's no significant difference between having a linear or quadratic model. 
+
+# Results and Conclusion 
+To actually run an SLR test, we made sure that our assumptions were cleared for our data. We can clearly tell from our linear regression model summary and more importantly our confidence interval for beta 1, that there is a statistical relationship between MEDV and NX.We know this because 0 isn't within the 95 percent confidence interval which means that if we had a statistically significant number of times, the beta 1 will be within the range 95 percent of the time. Though our R squared are low for our data, we know that there are several extraneous variables that are affecting the data to the extent that our outliers are heavily affeccting our R-Squared and creating large standard deviations. To clarify, we reject our null hypothesis and thus believe that there is a negative correlation between MEDV and NX. 
+
+## Moving Forward 
+If I were to redo this, I would remove more outliers. I would also try to apply more models because clearly the R-squared was low throughout the entire analysis. 
+
+
+# References 
+
+Mendenhall, William, and Terry Sincich. Statistics for Engineering and the Sciences. Prentice Hall.   
+
+Mullane, Joseph. “Ulez Charge on Homes Would Tackle Air Pollution and Rising NO2, Say Researchers.” Homebuilding & Renovating, Homebuilding, 22 Aug. 2023, www.homebuilding.co.uk/news/ULEZ-charge-on-homes.  
+
+Miłuch, Oktawia, and Katarzyna Kopczewska. “Fresh air in the city: The impact of air pollution on the pricing of Real Estate.” Environmental Science and Pollution Research, vol. 31, no. 5, 2 Jan. 2024, pp. 7604–7627, https://doi.org/10.1007/s11356-023-31668-1. 
+
+
+
